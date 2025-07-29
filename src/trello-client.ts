@@ -349,4 +349,38 @@ export class TrelloClient {
       return response.data;
     });
   }
+
+  async getCardComments(cardId: string): Promise<TrelloAction[]> {
+    return this.handleRequest(async () => {
+      const response = await this.axiosInstance.get(`/cards/${cardId}/actions`, {
+        params: { filter: 'commentCard' },
+      });
+      // Trello returns newest first, so reverse for chronological order (oldest first)
+      return response.data.reverse();
+    });
+  }
+
+  async addCommentToCard(cardId: string, text: string): Promise<TrelloAction> {
+    return this.handleRequest(async () => {
+      const response = await this.axiosInstance.post(`/cards/${cardId}/actions/comments`, null, {
+        params: { text },
+      });
+      return response.data;
+    });
+  }
+
+  async editCardComment(cardId: string, commentId: string, text: string): Promise<TrelloAction> {
+    return this.handleRequest(async () => {
+      const response = await this.axiosInstance.put(`/actions/${commentId}`, null, {
+        params: { text },
+      });
+      return response.data;
+    });
+  }
+
+  async deleteCardComment(cardId: string, commentId: string): Promise<void> {
+    return this.handleRequest(async () => {
+      await this.axiosInstance.delete(`/actions/${commentId}`);
+    });
+  }
 }

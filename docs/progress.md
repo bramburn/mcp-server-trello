@@ -40,6 +40,12 @@
    - ✅ archive_card: Archive card
    - ✅ get_my_cards: Fetch user's assigned cards
 
+3. Comment Operations:
+   - ✅ get_card_comments: Get all comments for a card in chronological order
+   - ✅ add_comment_to_card: Add a new comment to a card
+   - ✅ edit_card_comment: Edit an existing comment (user's own comments only)
+   - ✅ delete_card_comment: Delete an existing comment (user's own comments only)
+
 ### Type Definitions
 - ✅ TrelloConfig: Server configuration interface
 - ✅ TrelloCard: Card data structure
@@ -53,7 +59,7 @@
 
 ### Potential Enhancements
 1. Additional Card Features:
-   - Add comment support
+   - ✅ Add comment support (COMPLETED)
    - Add attachment handling
    - Add checklist management
    - Add member assignment capabilities

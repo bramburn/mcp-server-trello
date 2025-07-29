@@ -31,3 +31,8 @@ coverage/
 # Logs
 logs/
 *.log
+
+
+repomix-output.xml
+
+docs/todo/

@@ -37,11 +37,11 @@ class TrelloServer {
       throw new Error('TRELLO_API_KEY and TRELLO_TOKEN environment variables are required');
     }
 
-    this.trelloClient = new TrelloClient({ 
-      apiKey, 
-      token, 
+    this.trelloClient = new TrelloClient({
+      apiKey,
+      token,
       defaultBoardId,
-      boardId: defaultBoardId // Use defaultBoardId as initial boardId if provided
+      boardId: defaultBoardId, // Use defaultBoardId as initial boardId if provided
     });
 
     this.server = new Server(
@@ -59,7 +59,7 @@ class TrelloServer {
     this.setupToolHandlers();
 
     // Error handling
-    this.server.onerror = (error) => {
+    this.server.onerror = error => {
       // Silently handle errors to avoid interfering with MCP protocol
     };
     process.on('SIGINT', async () => {
@@ -377,6 +377,78 @@ class TrelloServer {
             required: [],
           },
         },
+        {
+          name: 'get_card_comments',
+          description: 'Get all comments for a Trello card, in chronological order',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              card_id: {
+                type: 'string',
+                description: 'The ID of the Trello card',
+              },
+            },
+            required: ['card_id'],
+          },
+        },
+        {
+          name: 'add_comment_to_card',
+          description: 'Add a new comment to a Trello card',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              card_id: {
+                type: 'string',
+                description: 'The ID of the Trello card',
+              },
+              comment_text: {
+                type: 'string',
+                description: 'The text of the comment to add',
+              },
+            },
+            required: ['card_id', 'comment_text'],
+          },
+        },
+        {
+          name: 'edit_card_comment',
+          description: 'Edit an existing comment on a Trello card (only your own comments)',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              card_id: {
+                type: 'string',
+                description: 'The ID of the Trello card',
+              },
+              comment_id: {
+                type: 'string',
+                description: 'The ID of the comment to edit',
+              },
+              comment_text: {
+                type: 'string',
+                description: 'The new text for the comment',
+              },
+            },
+            required: ['card_id', 'comment_id', 'comment_text'],
+          },
+        },
+        {
+          name: 'delete_card_comment',
+          description: 'Delete an existing comment on a Trello card (only your own comments)',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              card_id: {
+                type: 'string',
+                description: 'The ID of the Trello card',
+              },
+              comment_id: {
+                type: 'string',
+                description: 'The ID of the comment to delete',
+              },
+            },
+            required: ['card_id', 'comment_id'],
+          },
+        },
       ],
     }));
 
@@ -507,10 +579,12 @@ class TrelloServer {
             try {
               const board = await this.trelloClient.setActiveBoard(validArgs.boardId);
               return {
-                content: [{ 
-                  type: 'text', 
-                  text: `Successfully set active board to "${board.name}" (${board.id})`
-                }],
+                content: [
+                  {
+                    type: 'text',
+                    text: `Successfully set active board to "${board.name}" (${board.id})`,
+                  },
+                ],
               };
             } catch (error) {
               return this.handleErrorResponse(error);
@@ -529,10 +603,12 @@ class TrelloServer {
             try {
               const workspace = await this.trelloClient.setActiveWorkspace(validArgs.workspaceId);
               return {
-                content: [{ 
-                  type: 'text', 
-                  text: `Successfully set active workspace to "${workspace.displayName}" (${workspace.id})`
-                }],
+                content: [
+                  {
+                    type: 'text',
+                    text: `Successfully set active workspace to "${workspace.displayName}" (${workspace.id})`,
+                  },
+                ],
               };
             } catch (error) {
               return this.handleErrorResponse(error);
@@ -559,14 +635,152 @@ class TrelloServer {
               }
               const board = await this.trelloClient.getBoardById(boardId);
               return {
-                content: [{ 
-                  type: 'text', 
-                  text: JSON.stringify({
-                    ...board,
-                    isActive: true,
-                    activeWorkspaceId: this.trelloClient.activeWorkspaceId || 'Not set'
-                  }, null, 2)
-                }],
+                content: [
+                  {
+                    type: 'text',
+                    text: JSON.stringify(
+                      {
+                        ...board,
+                        isActive: true,
+                        activeWorkspaceId: this.trelloClient.activeWorkspaceId || 'Not set',
+                      },
+                      null,
+                      2
+                    ),
+                  },
+                ],
+              };
+            } catch (error) {
+              return this.handleErrorResponse(error);
+            }
+          }
+
+          case 'get_card_comments': {
+            try {
+              const { card_id } = args as { card_id: string };
+              if (!card_id) {
+                throw new McpError(ErrorCode.InvalidParams, 'card_id is required');
+              }
+              const comments = await this.trelloClient.getCardComments(card_id);
+              if (comments.length === 0) {
+                return {
+                  content: [{ type: 'text', text: 'No comments found on this card.' }],
+                };
+              }
+              const formattedComments = comments.map((comment: any) => ({
+                comment_id: comment.id,
+                author: comment.memberCreator.fullName,
+                text: comment.data.text,
+                date: comment.date,
+              }));
+              return {
+                content: [{ type: 'text', text: JSON.stringify(formattedComments, null, 2) }],
+              };
+            } catch (error) {
+              return this.handleErrorResponse(error);
+            }
+          }
+
+          case 'add_comment_to_card': {
+            try {
+              const { card_id, comment_text } = args as { card_id: string; comment_text: string };
+              if (!card_id) {
+                throw new McpError(ErrorCode.InvalidParams, 'card_id is required');
+              }
+              if (!comment_text) {
+                throw new McpError(ErrorCode.InvalidParams, 'comment_text is required');
+              }
+              const result = await this.trelloClient.addCommentToCard(card_id, comment_text);
+              return {
+                content: [
+                  {
+                    type: 'text',
+                    text: JSON.stringify(
+                      {
+                        success: true,
+                        comment_id: result.id,
+                        message: 'Comment added successfully',
+                      },
+                      null,
+                      2
+                    ),
+                  },
+                ],
+              };
+            } catch (error) {
+              return this.handleErrorResponse(error);
+            }
+          }
+
+          case 'edit_card_comment': {
+            try {
+              const { card_id, comment_id, comment_text } = args as {
+                card_id: string;
+                comment_id: string;
+                comment_text: string;
+              };
+              if (!card_id) {
+                throw new McpError(ErrorCode.InvalidParams, 'card_id is required');
+              }
+              if (!comment_id) {
+                throw new McpError(ErrorCode.InvalidParams, 'comment_id is required');
+              }
+              if (!comment_text) {
+                throw new McpError(ErrorCode.InvalidParams, 'comment_text is required');
+              }
+              const result = await this.trelloClient.editCardComment(
+                card_id,
+                comment_id,
+                comment_text
+              );
+              return {
+                content: [
+                  {
+                    type: 'text',
+                    text: JSON.stringify(
+                      {
+                        success: true,
+                        comment_id: result.id,
+                        message: 'Comment edited successfully',
+                      },
+                      null,
+                      2
+                    ),
+                  },
+                ],
+              };
+            } catch (error) {
+              return this.handleErrorResponse(error);
+            }
+          }
+
+          case 'delete_card_comment': {
+            try {
+              const { card_id, comment_id } = args as {
+                card_id: string;
+                comment_id: string;
+              };
+              if (!card_id) {
+                throw new McpError(ErrorCode.InvalidParams, 'card_id is required');
+              }
+              if (!comment_id) {
+                throw new McpError(ErrorCode.InvalidParams, 'comment_id is required');
+              }
+              await this.trelloClient.deleteCardComment(card_id, comment_id);
+              return {
+                content: [
+                  {
+                    type: 'text',
+                    text: JSON.stringify(
+                      {
+                        success: true,
+                        message: 'Comment deleted successfully',
+                      },
+                      null,
+                      2
+                    ),
+                  },
+                ],
               };
             } catch (error) {
               return this.handleErrorResponse(error);
@@ -605,7 +819,7 @@ class TrelloServer {
   async run() {
     const transport = new StdioServerTransport();
     // Load configuration before starting the server
-    await this.trelloClient.loadConfig().catch((error) => {
+    await this.trelloClient.loadConfig().catch(error => {
       // Continue with default config if loading fails
     });
     await this.server.connect(transport);
