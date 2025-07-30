@@ -22,6 +22,10 @@ import {
   validateSetActiveBoardRequest,
   validateSetActiveWorkspaceRequest,
   validateListBoardsInWorkspaceRequest,
+  validateUpdateCardDescriptionRequest,
+  validateAppendToCardDescriptionRequest,
+  validateGetCardLabelsRequest,
+  validateAddLabelsToCardRequest,
 } from './validators.js';
 
 class TrelloServer {
@@ -193,6 +197,42 @@ class TrelloServer {
               },
             },
             required: ['cardId'],
+          },
+        },
+        {
+          name: 'update_card_description',
+          description: 'Update the entire description of a specific card',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              card_id: {
+                type: 'string',
+                description: 'The ID of the card to update',
+              },
+              description: {
+                type: 'string',
+                description: 'The new, complete description for the card',
+              },
+            },
+            required: ['card_id', 'description'],
+          },
+        },
+        {
+          name: 'append_to_card_description',
+          description: 'Append text to the existing description of a specific card',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              card_id: {
+                type: 'string',
+                description: 'The ID of the card to append text to',
+              },
+              text_to_append: {
+                type: 'string',
+                description: 'The text to append to the card description',
+              },
+            },
+            required: ['card_id', 'text_to_append'],
           },
         },
         {
@@ -378,6 +418,50 @@ class TrelloServer {
           },
         },
         {
+          name: 'get_board_labels',
+          description: 'Get all available labels for the currently active board',
+          inputSchema: {
+            type: 'object',
+            properties: {},
+            required: [],
+          },
+        },
+        {
+          name: 'get_card_labels',
+          description: 'Get all labels currently applied to a specific card',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              card_id: {
+                type: 'string',
+                description: 'The ID of the card to get labels from',
+              },
+            },
+            required: ['card_id'],
+          },
+        },
+        {
+          name: 'add_labels_to_card',
+          description: 'Add one or more existing labels to a specific card',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              card_id: {
+                type: 'string',
+                description: 'The ID of the card to add labels to',
+              },
+              label_ids: {
+                type: 'array',
+                items: {
+                  type: 'string',
+                },
+                description: 'An array of label IDs to add to the card',
+              },
+            },
+            required: ['card_id', 'label_ids'],
+          },
+        },
+        {
           name: 'get_card_comments',
           description: 'Get all comments for a Trello card, in chronological order',
           inputSchema: {
@@ -511,6 +595,36 @@ class TrelloServer {
             const card = await this.trelloClient.updateCard(validArgs.boardId, validArgs);
             return {
               content: [{ type: 'text', text: JSON.stringify(card, null, 2) }],
+            };
+          }
+
+          case 'update_card_description': {
+            const validArgs = validateUpdateCardDescriptionRequest(args);
+            const card = await this.trelloClient.updateCardDescription(validArgs.card_id, validArgs.description);
+            return {
+              content: [{
+                type: 'text',
+                text: JSON.stringify({
+                  success: true,
+                  message: `Description for card ${validArgs.card_id} updated successfully.`,
+                  card: card
+                }, null, 2)
+              }],
+            };
+          }
+
+          case 'append_to_card_description': {
+            const validArgs = validateAppendToCardDescriptionRequest(args);
+            const card = await this.trelloClient.appendToCardDescription(validArgs.card_id, validArgs.text_to_append);
+            return {
+              content: [{
+                type: 'text',
+                text: JSON.stringify({
+                  success: true,
+                  message: `Text appended to card ${validArgs.card_id} successfully.`,
+                  card: card
+                }, null, 2)
+              }],
             };
           }
 
@@ -649,6 +763,68 @@ class TrelloServer {
                     ),
                   },
                 ],
+              };
+            } catch (error) {
+              return this.handleErrorResponse(error);
+            }
+          }
+
+          case 'get_board_labels': {
+            try {
+              const labels = await this.trelloClient.getBoardLabels();
+              return {
+                content: [{
+                  type: 'text',
+                  text: JSON.stringify({
+                    success: true,
+                    labels: labels.map(label => ({
+                      id: label.id,
+                      name: label.name,
+                      color: label.color
+                    }))
+                  }, null, 2)
+                }],
+              };
+            } catch (error) {
+              return this.handleErrorResponse(error);
+            }
+          }
+
+          case 'get_card_labels': {
+            try {
+              const validArgs = validateGetCardLabelsRequest(args);
+              const labels = await this.trelloClient.getCardLabels(validArgs.card_id);
+              return {
+                content: [{
+                  type: 'text',
+                  text: JSON.stringify({
+                    success: true,
+                    labels: labels.map(label => ({
+                      id: label.id,
+                      name: label.name,
+                      color: label.color
+                    }))
+                  }, null, 2)
+                }],
+              };
+            } catch (error) {
+              return this.handleErrorResponse(error);
+            }
+          }
+
+          case 'add_labels_to_card': {
+            try {
+              const validArgs = validateAddLabelsToCardRequest(args);
+              const card = await this.trelloClient.addLabelsToCard(validArgs.card_id, validArgs.label_ids);
+              return {
+                content: [{
+                  type: 'text',
+                  text: JSON.stringify({
+                    success: true,
+                    message: `Labels added to card ${validArgs.card_id} successfully.`,
+                    card: card
+                  }, null, 2)
+                }],
               };
             } catch (error) {
               return this.handleErrorResponse(error);

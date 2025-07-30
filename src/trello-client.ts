@@ -7,6 +7,7 @@ import {
   TrelloAttachment,
   TrelloBoard,
   TrelloWorkspace,
+  TrelloLabel,
 } from './types.js';
 import { createTrelloRateLimiters } from './rate-limiter.js';
 import { McpError, ErrorCode } from '@modelcontextprotocol/sdk/types.js';
@@ -250,13 +251,23 @@ export class TrelloClient {
     }
   ): Promise<TrelloCard> {
     return this.handleRequest(async () => {
-      const response = await this.axiosInstance.post('/cards', {
+      const requestParams: any = {
         idList: params.listId,
         name: params.name,
-        desc: params.description,
-        due: params.dueDate,
-        idLabels: params.labels,
-      });
+      };
+
+      // Only include optional parameters if they are provided
+      if (params.description) {
+        requestParams.desc = params.description;
+      }
+      if (params.dueDate) {
+        requestParams.due = params.dueDate;
+      }
+      if (params.labels && params.labels.length > 0) {
+        requestParams.idLabels = params.labels;
+      }
+
+      const response = await this.axiosInstance.post('/cards', requestParams);
       return response.data;
     });
   }
@@ -278,6 +289,63 @@ export class TrelloClient {
         due: params.dueDate,
         idLabels: params.labels,
       });
+      return response.data;
+    });
+  }
+
+  async updateCardDescription(cardId: string, description: string): Promise<TrelloCard> {
+    return this.handleRequest(async () => {
+      const response = await this.axiosInstance.put(`/cards/${cardId}`, {
+        desc: description,
+      });
+      return response.data;
+    });
+  }
+
+  async getCardDescription(cardId: string): Promise<string> {
+    return this.handleRequest(async () => {
+      const response = await this.axiosInstance.get(`/cards/${cardId}`, {
+        params: { fields: 'desc' },
+      });
+      return response.data.desc || '';
+    });
+  }
+
+  async appendToCardDescription(cardId: string, textToAppend: string): Promise<TrelloCard> {
+    const currentDesc = await this.getCardDescription(cardId);
+    // Append with two newlines for clear separation, or just the new text if no existing description
+    const newDesc = currentDesc ? `${currentDesc}\n\n${textToAppend}` : textToAppend;
+    return this.updateCardDescription(cardId, newDesc);
+  }
+
+  async getBoardLabels(boardId?: string): Promise<TrelloLabel[]> {
+    const effectiveBoardId = boardId || this.activeConfig.boardId || this.defaultBoardId;
+    if (!effectiveBoardId) {
+      throw new McpError(
+        ErrorCode.InvalidParams,
+        'boardId is required when no default board is configured'
+      );
+    }
+    return this.handleRequest(async () => {
+      const response = await this.axiosInstance.get(`/boards/${effectiveBoardId}/labels`);
+      return response.data;
+    });
+  }
+
+  async getCardLabels(cardId: string): Promise<TrelloLabel[]> {
+    return this.handleRequest(async () => {
+      const response = await this.axiosInstance.get(`/cards/${cardId}`, {
+        params: { fields: 'labels' },
+      });
+      return response.data.labels || [];
+    });
+  }
+
+  async addLabelsToCard(cardId: string, labelIds: string[]): Promise<TrelloCard> {
+    return this.handleRequest(async () => {
+      // The Trello API expects a comma-separated string of label IDs in the 'value' parameter
+      const value = labelIds.join(',');
+      const response = await this.axiosInstance.post(`/cards/${cardId}/idLabels`, { value });
       return response.data;
     });
   }

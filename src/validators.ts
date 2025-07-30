@@ -161,6 +161,65 @@ export function validateMoveCardRequest(args: Record<string, unknown>): {
   };
 }
 
+export function validateUpdateCardDescriptionRequest(args: Record<string, unknown>): {
+  card_id: string;
+  description: string;
+} {
+  if (!args.card_id || args.description === undefined || args.description === null) {
+    throw new McpError(ErrorCode.InvalidParams, 'card_id and description are required');
+  }
+  return {
+    card_id: validateString(args.card_id, 'card_id'),
+    description: validateString(args.description, 'description'),
+  };
+}
+
+export function validateAppendToCardDescriptionRequest(args: Record<string, unknown>): {
+  card_id: string;
+  text_to_append: string;
+} {
+  if (!args.card_id || !args.text_to_append) {
+    throw new McpError(ErrorCode.InvalidParams, 'card_id and text_to_append are required');
+  }
+  return {
+    card_id: validateString(args.card_id, 'card_id'),
+    text_to_append: validateString(args.text_to_append, 'text_to_append'),
+  };
+}
+
+export function validateGetCardLabelsRequest(args: Record<string, unknown>): {
+  card_id: string;
+} {
+  if (!args.card_id) {
+    throw new McpError(ErrorCode.InvalidParams, 'card_id is required');
+  }
+  return {
+    card_id: validateString(args.card_id, 'card_id'),
+  };
+}
+
+export function validateAddLabelsToCardRequest(args: Record<string, unknown>): {
+  card_id: string;
+  label_ids: string[];
+} {
+  if (!args.card_id || !args.label_ids) {
+    throw new McpError(ErrorCode.InvalidParams, 'card_id and label_ids are required');
+  }
+
+  if (!Array.isArray(args.label_ids)) {
+    throw new McpError(ErrorCode.InvalidParams, 'label_ids must be an array');
+  }
+
+  if (args.label_ids.length === 0) {
+    throw new McpError(ErrorCode.InvalidParams, 'label_ids array must contain at least one label ID');
+  }
+
+  return {
+    card_id: validateString(args.card_id, 'card_id'),
+    label_ids: args.label_ids.map((id, index) => validateString(id, `label_ids[${index}]`)),
+  };
+}
+
 export function validateAttachImageRequest(args: Record<string, unknown>): {
   boardId?: string;
   cardId: string;
